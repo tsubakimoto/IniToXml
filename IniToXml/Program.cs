@@ -4,24 +4,23 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
-using System.Threading.Tasks;
 using System.Xml.Serialization;
 
 namespace IniToXml
 {
-    public class IniFile
+    public class Root
     {
         public string Name { get; set; }
-        public List<IniSection> Sections { get; set; }
+        public List<Section> Sections { get; set; }
     }
 
-    public class IniSection
+    public class Section
     {
         public string Name { get; set; }
-        public List<IniItem> Items { get; set; }
+        public List<Item> Items { get; set; }
     }
 
-    public class IniItem
+    public class Item
     {
         public string Key { get; set; }
         public string Value { get; set; }
@@ -45,24 +44,69 @@ namespace IniToXml
 
         static void Main(string[] args)
         {
+            var before = DateTime.Now.Ticks;
+
             var iniPath = Path.Combine(Environment.CurrentDirectory, "sample.ini");
             var xmlPath = Path.Combine(Environment.CurrentDirectory, "sample.xml");
 
+#if true
+            var iniFile = GetSections(iniPath)
+                            .Select(s => new Section
+                            {
+                                Name = s,
+                                Items = GetKeys(iniPath, s)
+                                    .Select(k => new Item
+                                    {
+                                        Key = k,
+                                        Value = GetValue(iniPath, s, k)
+                                    })
+                                    .ToList()
+                            })
+                            .ToList();
+            var serializer = new XmlSerializer(iniFile.GetType());
+            var ns = new XmlSerializerNamespaces();
+            ns.Add(string.Empty, string.Empty);
+            using (var sw = new StreamWriter(xmlPath, false, Encoding.UTF8))
+            {
+                serializer.Serialize(sw, iniFile, ns);
+            }
+#endif
+
+#if false
+            var sections = new List<Section>();
             var tSections = GetSections(iniPath);
-            var sections = new List<IniSection>();
             foreach (var section in tSections)
             {
                 var keys = GetKeys(iniPath, section);
-                var items = new List<IniItem>();
+                var items = new List<Item>();
                 foreach (var key in keys)
                 {
                     var value = GetValue(iniPath, section, key);
-                    items.Add(new IniItem { Key = key, Value = value });
+                    items.Add(new Item { Key = key, Value = value });
                 }
-                sections.Add(new IniSection { Name = section, Items = items });
+                sections.Add(new Section { Name = section, Items = items });
             }
-            var iniFile = new IniFile { Name = Path.GetFileName(iniPath), Sections = sections };
+            var iniFile = new Root { Name = Path.GetFileName(iniPath), Sections = sections };
             Serialize(xmlPath, iniFile);
+#endif
+
+#if false
+            var sections = new List<Section>();
+            var tSections = GetSections(iniPath);
+            Parallel.ForEach(tSections, section =>
+            {
+                var keys = GetKeys(iniPath, section);
+                var items = new List<Item>();
+                Parallel.ForEach(keys, key =>
+                {
+                    var value = GetValue(iniPath, section, key);
+                    items.Add(new Item { Key = key, Value = value });
+                });
+                sections.Add(new Section { Name = section, Items = items });
+            });
+            var iniFile = new Root { Name = Path.GetFileName(iniPath), Sections = sections };
+            Serialize(xmlPath, iniFile);
+#endif
 
 #if false
             var iniFile = GetSections(iniPath)
@@ -77,15 +121,11 @@ namespace IniToXml
                                                 Key = k,
                                                 Value = GetValue(iniPath, s, k)
                                             })
-                                })
-                            ;
-
-            var serializer = new XmlSerializer(iniFile.GetType());
-            using (var sw = new StreamWriter(xmlPath, false, Encoding.UTF8))
-            {
-                serializer.Serialize(sw, iniFile);
-            }
+                                });
 #endif
+
+            var after = DateTime.Now.Ticks;
+            Console.WriteLine(new TimeSpan(after - before).TotalMilliseconds);
 
             Console.ReadKey();
         }
@@ -116,12 +156,15 @@ namespace IniToXml
             return sb.ToString();
         }
 
-        static void Serialize(string xmlPath, IniFile iniFile)
+        static void Serialize(string xmlPath, Root iniFile)
         {
-            var serializer = new XmlSerializer(typeof(IniFile));
+            var serializer = new XmlSerializer(typeof(Root));
+            var ns = new XmlSerializerNamespaces();
+            ns.Add(string.Empty, string.Empty);
+
             using (var sw = new StreamWriter(xmlPath, false, Encoding.UTF8))
             {
-                serializer.Serialize(sw, iniFile);
+                serializer.Serialize(sw, iniFile, ns);
             }
         }
     }
