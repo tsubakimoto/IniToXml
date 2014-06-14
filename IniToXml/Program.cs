@@ -5,43 +5,27 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml.Serialization;
 
 namespace IniToXml
 {
-#if false
-    class IniFile
+    public class IniFile
     {
-        public string Name { get; private set; }
-        public IList<IniSection> Sections { get; private set; }
-        public IniFile(string name, IList<IniSection> sections)
-        {
-            this.Name = name;
-            this.Sections = sections;
-        }
+        public string Name { get; set; }
+        public List<IniSection> Sections { get; set; }
     }
 
-    class IniSection
+    public class IniSection
     {
-        public string Name { get; private set; }
-        public IList<IniItem> Items { get; private set; }
-        public IniSection(string name, IList<IniItem> items)
-        {
-            this.Name = name;
-            this.Items = items;
-        }
+        public string Name { get; set; }
+        public List<IniItem> Items { get; set; }
     }
 
-    class IniItem
+    public class IniItem
     {
-        public string Key { get; private set; }
-        public string Value { get; private set; }
-        public IniItem(string key, string value)
-        {
-            this.Key = key;
-            this.Value = value;
-        }
+        public string Key { get; set; }
+        public string Value { get; set; }
     }
-#endif
 
     class Program
     {
@@ -62,7 +46,25 @@ namespace IniToXml
         static void Main(string[] args)
         {
             var iniPath = Path.Combine(Environment.CurrentDirectory, "sample.ini");
+            var xmlPath = Path.Combine(Environment.CurrentDirectory, "sample.xml");
 
+            var tSections = GetSections(iniPath);
+            var sections = new List<IniSection>();
+            foreach (var section in tSections)
+            {
+                var keys = GetKeys(iniPath, section);
+                var items = new List<IniItem>();
+                foreach (var key in keys)
+                {
+                    var value = GetValue(iniPath, section, key);
+                    items.Add(new IniItem { Key = key, Value = value });
+                }
+                sections.Add(new IniSection { Name = section, Items = items });
+            }
+            var iniFile = new IniFile { Name = Path.GetFileName(iniPath), Sections = sections };
+            Serialize(xmlPath, iniFile);
+
+#if false
             var iniFile = GetSections(iniPath)
                             .Select(s =>
                                 new
@@ -77,6 +79,13 @@ namespace IniToXml
                                             })
                                 })
                             ;
+
+            var serializer = new XmlSerializer(iniFile.GetType());
+            using (var sw = new StreamWriter(xmlPath, false, Encoding.UTF8))
+            {
+                serializer.Serialize(sw, iniFile);
+            }
+#endif
 
             Console.ReadKey();
         }
@@ -105,6 +114,15 @@ namespace IniToXml
             GetPrivateProfileString(
                 section, key, "default", sb, (uint)sb.Capacity, iniPath);
             return sb.ToString();
+        }
+
+        static void Serialize(string xmlPath, IniFile iniFile)
+        {
+            var serializer = new XmlSerializer(typeof(IniFile));
+            using (var sw = new StreamWriter(xmlPath, false, Encoding.UTF8))
+            {
+                serializer.Serialize(sw, iniFile);
+            }
         }
     }
 }
